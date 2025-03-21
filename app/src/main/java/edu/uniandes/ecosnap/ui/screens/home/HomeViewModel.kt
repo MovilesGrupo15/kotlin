@@ -2,7 +2,7 @@ package edu.uniandes.ecosnap.ui.screens.home
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import edu.uniandes.ecosnap.data.observer.Observer
 import edu.uniandes.ecosnap.data.repository.OfferRepository
 import edu.uniandes.ecosnap.data.repository.UserRepository
 import edu.uniandes.ecosnap.domain.model.Offer
@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val userName: String = "",
@@ -21,64 +20,77 @@ data class HomeUiState(
     val error: String? = null
 )
 
-class HomeViewModel(
-    private val userRepository: UserRepository = UserRepository(),
-    private val offerRepository: OfferRepository = OfferRepository()
-) : ViewModel() {
-
+class HomeViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private val offerObserver = object : Observer<Offer> {
+        override fun onSuccess(data: Offer) {
+            _uiState.update { currentState ->
+                val updatedOffers = currentState.offers.toMutableList()
+                updatedOffers.add(data)
+                currentState.copy(
+                    offers = updatedOffers,
+                    isLoading = false
+                )
+            }
+        }
+
+        override fun onError(error: Throwable) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = "Error al cargar las ofertas: ${error.message}"
+                )
+            }
+        }
+    }
+    private val userProfileObserver = object : Observer<UserProfile> {
+        override fun onSuccess(data: UserProfile) {
+            _uiState.update {
+                it.copy(
+                    userName = data.userName,
+                    points = data.points,
+                    isLoading = false
+                )
+            }
+        }
+
+        override fun onError(error: Throwable) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    error = "Error al cargar el perfil: ${error.message}"
+                )
+            }
+        }
+
+    }
+
     init {
         Log.d("HomeViewModel", "Initializing HomeViewModel...")
+        OfferRepository.addObserver(offerObserver)
+        UserRepository.addObserver(userProfileObserver)
         loadUserProfile()
         loadOffers()
     }
 
+    override fun onCleared() {
+        OfferRepository.removeObserver(offerObserver)
+        super.onCleared()
+    }
+
     private fun loadUserProfile() {
-        viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true) }
-                userRepository.getUserProfile().collect { userProfile ->
-                    _uiState.update {
-                        it.copy(
-                            userName = userProfile.userName,
-                            points = userProfile.points,
-                            isLoading = false
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "Error al cargar el perfil: ${e.message}"
-                    )
-                }
-            }
-        }
+        UserRepository.fetch()
     }
 
     private fun loadOffers() {
-        viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(isLoading = true) }
-                offerRepository.getOffers().collect { offers ->
-                    _uiState.update {
-                        it.copy(
-                            offers = offers,
-                            isLoading = false
-                        )
-                    }
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "Error al cargar las ofertas: ${e.message}"
-                    )
-                }
-            }
+        _uiState.update {
+            it.copy(
+                offers = emptyList(),
+                isLoading = true
+            )
         }
+        OfferRepository.fetch()
     }
 }
