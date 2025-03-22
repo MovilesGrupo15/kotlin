@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.preference.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -62,4 +63,6 @@ dependencies {
     implementation(libs.ktor.client.json)
     implementation(libs.ktor.client.serialization)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.osmdroid.android)
+    implementation(libs.play.services.location)
 }
