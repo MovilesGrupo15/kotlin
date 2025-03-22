@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -154,7 +156,10 @@ fun getUserLocation(context: Context, callback: (Location?) -> Unit) {
 }
 
 @Composable
-fun ScanScreen(onNavigateBack: () -> Unit) {
+fun ScanScreen(
+    onNavigateBack: () -> Unit,
+    onCameraScanClick: () -> Unit
+) {
     val viewModel: NearbyPointsViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -208,7 +213,7 @@ fun ScanScreen(onNavigateBack: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TopBar()
+        TopBar(onCameraScanClick)
         TitleBar(onNavigateBack)
 
         Spacer(modifier = Modifier.weight(0.05f))
@@ -280,7 +285,7 @@ fun ScanScreen(onNavigateBack: () -> Unit) {
 }
 
 @Composable
-private fun TopBar() {
+private fun TopBar(onCameraScanClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -295,6 +300,20 @@ private fun TopBar() {
                 imageVector = Icons.Default.Menu,
                 contentDescription = "Menu",
                 tint = Color.Black
+            )
+        }
+
+        Button(
+            onClick = onCameraScanClick,
+            modifier = Modifier.align(Alignment.CenterEnd),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = Color.Black
+            )
+        ) {
+            Text(
+                text = "Cámara",
+                fontWeight = FontWeight.Bold
             )
         }
     }
