@@ -15,6 +15,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,18 +24,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +60,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.logEvent
@@ -200,11 +210,17 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
     val webSocketManager = remember { WebSocketManager("ws://${BuildConfig.SERVER_URL}/detect") }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var subscriptionToken by remember { mutableStateOf<SubscriptionToken?>(null) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasCameraPermission = isGranted
+    }
+
+    val performCleanupAndNavigate: () -> Unit = {
+        onNavigateBack()
+        Analytics.actionEvent("camera_scan_stop")
     }
 
     LaunchedEffect(Unit) {
@@ -274,7 +290,7 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
                         webSocketManager
                     )
 
-                    while (true) {
+                    while (subscriptionToken != null) {
                         imageCaptureManager.captureAndSend()
                         withContext(Dispatchers.IO) {
                             Thread.sleep(500)
@@ -363,11 +379,11 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
                 onClick = {
                     subscriptionToken?.let { token ->
                         webSocketManager.detectionPublisher.unsubscribe(token)
+                        subscriptionToken = null
                     }
                     webSocketManager.disconnect()
-                    onNavigateBack()
-                    Analytics.actionEvent("camera_scan_stop")
-                },
+                    showFeedbackDialog = true
+                          },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -383,7 +399,102 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
             }
         }
     }
+
+    if (showFeedbackDialog) {
+        FeedbackDialog(
+            onDismiss = { showFeedbackDialog = false },
+            onSend = { rating, message ->
+                val bundle = Bundle().apply {
+                    putInt("rating", rating)
+                    if (message.isNotBlank()) {
+                        putString("message", message)
+                    }
+                }
+                Analytics.firebaseAnalytics.logEvent("detection_feedback", bundle)
+                showFeedbackDialog = false
+                performCleanupAndNavigate()
+            },
+            onNotNow = {
+                showFeedbackDialog = false
+                performCleanupAndNavigate()
+            }
+        )
+    }
 }
+
+@Composable
+fun FeedbackDialog(
+    onDismiss: () -> Unit,
+    onSend: (rating: Int, message: String) -> Unit,
+    onNotNow: () -> Unit
+) {
+    var rating by remember { mutableIntStateOf(0) }
+    var message by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Detection Feedback") },
+        text = {
+            Column {
+                Text("Please rate the detection accuracy (optional):")
+                RatingBar(
+                    rating = rating,
+                    onRatingChanged = { rating = it }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it },
+                    label = { Text("Optional message") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSend(rating, message) },
+                enabled = rating > 0
+            ) {
+                Text("Send")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onNotNow) {
+                Text("Not Now")
+            }
+        },
+        properties = DialogProperties(dismissOnClickOutside = false)
+    )
+}
+
+@Composable
+fun RatingBar(
+    modifier: Modifier = Modifier,
+    rating: Int,
+    onRatingChanged: (Int) -> Unit,
+    stars: Int = 5,
+    starColor: Color = Color(0xFFFFC107)
+) {
+    Row(
+        modifier = modifier.padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        for (i in 1..stars) {
+            IconButton(onClick = { onRatingChanged(i) }) {
+                Icon(
+                    imageVector = if (i <= rating) Icons.Filled.Star else Icons.Outlined.Star,
+                    contentDescription = "Rate $i",
+                    tint = if (i <= rating) starColor else Color.Gray.copy(alpha = 0.5f),
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+            if(i < stars) Spacer(modifier = Modifier.width(4.dp))
+        }
+    }
+}
+
+
 
 @Composable
 fun CameraPreview(onPreviewReady: (ImageCapture) -> Unit) {
