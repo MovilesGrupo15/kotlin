@@ -11,6 +11,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.google.firebase.FirebaseApp
+import com.google.firebase.analytics.FirebaseAnalytics
 import edu.uniandes.ecosnap.data.repository.AuthRepository
 import edu.uniandes.ecosnap.ui.navigation.AppNavHost
 import edu.uniandes.ecosnap.ui.theme.EcoSnapTheme
@@ -19,7 +20,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
-        Log.d("MainActivity", "Initialized")
+        Analytics.initialize(FirebaseAnalytics.getInstance(this))
         AuthRepository.initializeAuth()
         enableEdgeToEdge()
         setContent {

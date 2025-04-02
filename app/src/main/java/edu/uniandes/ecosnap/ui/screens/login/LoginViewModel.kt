@@ -2,6 +2,7 @@ package edu.uniandes.ecosnap.ui.screens.login
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import edu.uniandes.ecosnap.Analytics
 import edu.uniandes.ecosnap.data.observer.Observer
 import edu.uniandes.ecosnap.data.repository.AuthRepository
 import edu.uniandes.ecosnap.domain.model.UserProfile
@@ -34,6 +35,7 @@ class LoginViewModel : ViewModel() {
                     error = if (!result) "Autenticación fallida" else ""
                 )
             }
+            if (result) Analytics.userLoggedIn(data!!.id)
             Log.d("LoginViewModel", "Authentication status: $result")
         }
 

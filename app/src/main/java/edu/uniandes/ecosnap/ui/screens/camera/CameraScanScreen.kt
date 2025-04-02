@@ -2,6 +2,7 @@ package edu.uniandes.ecosnap.ui.screens.camera
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.analytics.logEvent
+import edu.uniandes.ecosnap.Analytics
 import edu.uniandes.ecosnap.BuildConfig
 import edu.uniandes.ecosnap.data.pub.Publisher
 import edu.uniandes.ecosnap.data.pub.Subscriber
@@ -212,15 +216,25 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
         if (!hasCameraPermission) {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
-
+        Analytics.screenEvent("camera_scan")
+        Analytics.actionEvent("camera_scan_start")
         webSocketManager.connect()
 
         val subscriber = object : Subscriber<List<DetectionResult>> {
             override fun onNext(data: List<DetectionResult>) {
+                val countByType = data.groupBy { it.type }.mapValues { it.value.size }
+                val bundle = Bundle()
+                bundle.putString("count", data.size.toString())
+                for (entry in countByType) {
+                    bundle.putString(entry.key, entry.value.toString())
+                }
+
+                Analytics.firebaseAnalytics.logEvent("camera_scan_success", bundle)
                 detections = data
             }
 
             override fun onError(error: Throwable) {
+                Analytics.actionEvent("camera_scan_error")
                 Log.e("CameraScan", "Detection error", error)
             }
         }
@@ -352,6 +366,7 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
                     }
                     webSocketManager.disconnect()
                     onNavigateBack()
+                    Analytics.actionEvent("camera_scan_stop")
                 },
                 modifier = Modifier
                     .fillMaxWidth()
