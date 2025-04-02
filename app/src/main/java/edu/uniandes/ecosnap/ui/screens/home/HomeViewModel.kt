@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import edu.uniandes.ecosnap.data.observer.Observer
 import edu.uniandes.ecosnap.data.repository.OfferRepository
-import edu.uniandes.ecosnap.data.repository.UserRepository
+import edu.uniandes.ecosnap.data.repository.AuthRepository
 import edu.uniandes.ecosnap.domain.model.Offer
 import edu.uniandes.ecosnap.domain.model.UserProfile
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,8 +45,9 @@ class HomeViewModel : ViewModel() {
             }
         }
     }
-    private val userProfileObserver = object : Observer<UserProfile> {
-        override fun onSuccess(data: UserProfile) {
+    private val userProfileObserver = object : Observer<UserProfile?> {
+        override fun onSuccess(data: UserProfile?) {
+            if (data == null) return
             _uiState.update {
                 it.copy(
                     userName = data.userName,
@@ -70,7 +71,7 @@ class HomeViewModel : ViewModel() {
     init {
         Log.d("HomeViewModel", "Initializing HomeViewModel...")
         OfferRepository.addObserver(offerObserver)
-        UserRepository.addObserver(userProfileObserver)
+        AuthRepository.addObserver(userProfileObserver)
         loadUserProfile()
         loadOffers()
     }
@@ -81,7 +82,7 @@ class HomeViewModel : ViewModel() {
     }
 
     private fun loadUserProfile() {
-        UserRepository.fetch()
+        AuthRepository.fetch()
     }
 
     private fun loadOffers() {

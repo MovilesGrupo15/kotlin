@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "145925009398",
+    "project_id": "ecosnap-9503c",
+    "storage_bucket": "ecosnap-9503c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:145925009398:android:a2339e560fc34f08e821d7",
+        "android_client_info": {
+          "package_name": "com.example.ecosnap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzHUFRc37HRYLNi-Wq-N6LNpKxsTlAwYk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:145925009398:android:eb063b609cb12ef7e821d7",
+        "android_client_info": {
+          "package_name": "edu.uniandes.ecosnap"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzHUFRc37HRYLNi-Wq-N6LNpKxsTlAwYk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
