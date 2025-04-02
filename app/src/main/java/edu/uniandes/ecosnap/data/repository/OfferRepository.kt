@@ -1,5 +1,6 @@
 package edu.uniandes.ecosnap.data.repository
 
+import android.util.Log
 import edu.uniandes.ecosnap.data.observer.HttpClientProvider
 import edu.uniandes.ecosnap.data.observer.Observable
 import edu.uniandes.ecosnap.data.observer.ObservableRepository
@@ -9,10 +10,12 @@ import io.ktor.client.request.get
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import edu.uniandes.ecosnap.BuildConfig
+
 
 
 object OfferRepository: ObservableRepository<Offer> {
-    private const val baseUrl = "http://192.168.1.107:8000"
+    private val baseUrl = "http://${BuildConfig.SERVER_URL}"
     private val client = HttpClientProvider.createClient()
     private val offerObservable = Observable<Offer>()
 
@@ -35,6 +38,7 @@ object OfferRepository: ObservableRepository<Offer> {
                     offerObservable.notifySuccess(offer)
                 }
             } catch (e: Exception) {
+                Log.d("OfferRepository", "Error fetching offers: ${e.message}")
                 offerObservable.notifyError(e)
             }
         }

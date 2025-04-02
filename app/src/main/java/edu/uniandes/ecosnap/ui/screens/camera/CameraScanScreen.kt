@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import edu.uniandes.ecosnap.BuildConfig
 import edu.uniandes.ecosnap.data.pub.Publisher
 import edu.uniandes.ecosnap.data.pub.Subscriber
 import edu.uniandes.ecosnap.data.pub.SubscriptionToken
@@ -192,7 +193,7 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
     var hasCameraPermission by remember { mutableStateOf(false) }
     var detections by remember { mutableStateOf<List<DetectionResult>>(emptyList()) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    val webSocketManager = remember { WebSocketManager("ws://192.168.1.107:8000/detect") }
+    val webSocketManager = remember { WebSocketManager("ws://${BuildConfig.SERVER_URL}/detect") }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var subscriptionToken by remember { mutableStateOf<SubscriptionToken?>(null) }
 
