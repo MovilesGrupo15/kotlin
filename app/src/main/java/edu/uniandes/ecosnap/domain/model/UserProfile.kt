@@ -9,4 +9,5 @@ data class UserProfile(
     val userName: String = "",
     val password: String = "",
     val points: Int = 0,
+    val isAnonymous: Boolean = false
 )

@@ -10,12 +10,10 @@ import edu.uniandes.ecosnap.ui.screens.camera.CameraScanScreen
 import edu.uniandes.ecosnap.ui.screens.home.HomeScreen
 import edu.uniandes.ecosnap.ui.screens.login.LoginScreen
 import edu.uniandes.ecosnap.ui.screens.redeem.RedeemScreen
-//import edu.uniandes.ecosnap.ui.screens.register.RegisterScreen
 import edu.uniandes.ecosnap.ui.screens.scan.ScanScreen
 
 object AppDestinations {
     const val LOGIN_ROUTE = "login"
-    const val REGISTER_ROUTE = "register"
     const val HOME_ROUTE = "home"
     const val SCAN_ROUTE = "scan"
     const val REDEEM_ROUTE = "redeem"
