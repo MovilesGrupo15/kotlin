@@ -32,15 +32,12 @@ object AuthRepository: ObservableRepository<UserProfile?> {
         if (currentUser == null) {
             user = null
             authStatus.notifySuccess(null)
-            Log.d("UserRepository", "User is null")
             return
         }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                Log.d("UserRepository", "User found: ${currentUser.uid}")
                 if (currentUser.isAnonymous) {
-                    Log.d("UserRepository", "User is anonymous")
                     user = UserProfile(
                         email = currentUser.email ?: "",
                         userName = "Anonimo",
@@ -50,13 +47,11 @@ object AuthRepository: ObservableRepository<UserProfile?> {
                     )
                     authStatus.notifySuccess(user)
                 } else {
-                    Log.d("UserRepository", "User is non-anonymous, fetching profile")
                     val userDoc = firestore.collection("usuarios")
                         .document(currentUser.uid)
                         .get().await()
 
                     if (userDoc.exists()) {
-                        Log.d("UserRepository", "User profile fetched: ${userDoc.data}")
                         user = UserProfile(
                             email = userDoc.getString("email") ?: "",
                             userName = userDoc.getString("name") ?: "",
@@ -66,14 +61,12 @@ object AuthRepository: ObservableRepository<UserProfile?> {
                         )
                         authStatus.notifySuccess(user)
                     } else {
-                        Log.d("UserRepository", "User profile document does not exist for ${currentUser.uid}")
                         user = null
                         authStatus.notifySuccess(null)
                         authStatus.notifyError(Exception("User profile document not found"))
                     }
                 }
             } catch (e: Exception) {
-                Log.d("UserRepository", "User fetch failed: ${e.message}")
                 user = null
                 authStatus.notifySuccess(null)
                 authStatus.notifyError(e)
@@ -91,8 +84,7 @@ object AuthRepository: ObservableRepository<UserProfile?> {
             try {
                 val result = auth.signInWithEmailAndPassword(email, password).await()
                 if (result.user == null) throw Exception("Authentication failed")
-                Log.d("UserRepository", "User logged in: ${result.user?.uid}")
-                authStatus.notifySuccess(UserProfile())
+                fetch()
             } catch (e: Exception) {
                 user = null
                 authStatus.notifySuccess(null)
@@ -106,18 +98,8 @@ object AuthRepository: ObservableRepository<UserProfile?> {
             try {
                 val result = auth.signInAnonymously().await()
                 if (result.user == null) throw Exception("Anonymous authentication failed")
-                Log.d("UserRepository", "Anonymous user signed in: ${result.user?.uid}")
-                user = UserProfile(
-                    id = result.user!!.uid,
-                    email = "",
-                    userName = "Anonimo",
-                    points = 0,
-                    isAnonymous = true
-                )
-                authStatus.notifySuccess(user)
-
+                fetch()
             } catch (e: Exception) {
-                Log.d("UserRepository", "Anonymous sign in failed: ${e.message}")
                 user = null
                 authStatus.notifySuccess(null)
                 authStatus.notifyError(e)
@@ -144,11 +126,21 @@ object AuthRepository: ObservableRepository<UserProfile?> {
             try {
                 val authResult = auth.createUserWithEmailAndPassword(userProfile.email, userProfile.password!!).await()
                 if (authResult.user == null) throw Exception("Registration failed")
-                Log.d("UserRepository", "User registered: ${authResult.user?.uid}")
                 create(userProfile).await()
-                authStatus.notifySuccess(userProfile)
+                fetch()
             } catch (e: Exception) {
-                Log.d("UserRepository", "User registration failed: ${e.message}")
+                authStatus.notifyError(e)
+            }
+        }
+    }
+
+    fun signOut() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                auth.signOut()
+                user = null
+                authStatus.notifySuccess(null)
+            } catch (e: Exception) {
                 authStatus.notifyError(e)
             }
         }

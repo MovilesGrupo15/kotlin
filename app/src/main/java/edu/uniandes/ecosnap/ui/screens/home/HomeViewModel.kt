@@ -2,6 +2,7 @@ package edu.uniandes.ecosnap.ui.screens.home
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import edu.uniandes.ecosnap.data.observer.Observer
 import edu.uniandes.ecosnap.data.repository.OfferRepository
 import edu.uniandes.ecosnap.data.repository.AuthRepository
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val userName: String = "",
@@ -28,9 +30,11 @@ class HomeViewModel : ViewModel() {
         override fun onSuccess(data: Offer) {
             _uiState.update { currentState ->
                 val updatedOffers = currentState.offers.toMutableList()
-                updatedOffers.add(data)
+                if (!updatedOffers.contains(data)) {
+                    updatedOffers.add(data)
+                }
                 currentState.copy(
-                    offers = updatedOffers,
+                    offers = updatedOffers.toList(),
                     isLoading = false
                 )
             }
@@ -45,43 +49,45 @@ class HomeViewModel : ViewModel() {
             }
         }
     }
+
     private val userProfileObserver = object : Observer<UserProfile?> {
         override fun onSuccess(data: UserProfile?) {
-            if (data == null) return
             _uiState.update {
                 it.copy(
-                    userName = data.userName,
-                    points = data.points,
+                    userName = data?.userName ?: "",
+                    points = data?.points ?: 0,
                     isLoading = false
                 )
             }
+            loadOffers()
         }
 
         override fun onError(error: Throwable) {
             _uiState.update {
                 it.copy(
                     isLoading = false,
-                    error = "Error al cargar el perfil: ${error.message}"
+                    error = "Error al cargar el perfil: ${error.message}",
                 )
             }
         }
-
     }
 
     init {
         Log.d("HomeViewModel", "Initializing HomeViewModel...")
         OfferRepository.addObserver(offerObserver)
         AuthRepository.addObserver(userProfileObserver)
+        AuthRepository.initializeAuth()
         loadUserProfile()
-        loadOffers()
     }
 
     override fun onCleared() {
         OfferRepository.removeObserver(offerObserver)
+        AuthRepository.removeObserver(userProfileObserver)
         super.onCleared()
     }
 
-    private fun loadUserProfile() {
+    fun loadUserProfile() {
+        _uiState.update { it.copy(isLoading = true) }
         AuthRepository.fetch()
     }
 
@@ -89,9 +95,14 @@ class HomeViewModel : ViewModel() {
         _uiState.update {
             it.copy(
                 offers = emptyList(),
-                isLoading = true
+                isLoading = true,
+                error = null
             )
         }
         OfferRepository.fetch()
+    }
+
+    fun signOut() {
+        AuthRepository.signOut()
     }
 }

@@ -41,7 +41,8 @@ fun AppNavHost(navController: NavHostController) {
         composable(AppDestinations.HOME_ROUTE) {
             HomeScreen(
                 onScanClick = { navController.navigate(AppDestinations.SCAN_ROUTE) },
-                onRedeemClick = { navController.navigate(AppDestinations.REDEEM_ROUTE) }
+                onRedeemClick = { navController.navigate(AppDestinations.REDEEM_ROUTE) },
+                navController = navController,
             )
         }
 
