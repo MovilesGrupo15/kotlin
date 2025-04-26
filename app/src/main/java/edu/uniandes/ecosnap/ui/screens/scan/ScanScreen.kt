@@ -23,12 +23,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,20 +45,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.location.LocationServices
-import edu.uniandes.ecosnap.data.observer.Observer
-import edu.uniandes.ecosnap.data.repository.PointOfInterestRepository
 import edu.uniandes.ecosnap.domain.model.PointOfInterest
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -88,66 +86,18 @@ class MapController(private val mapView: MapView, private val markerFactory: Mar
     }
 }
 
-data class NearbyPointsUiState(
-    val pointsOfInterest: List<PointOfInterest> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null
-)
-
-class NearbyPointsViewModel : ViewModel() {
-    private val _uiState = MutableStateFlow(NearbyPointsUiState())
-    val uiState: StateFlow<NearbyPointsUiState> = _uiState.asStateFlow()
-
-    private val pointsOfInterestObserver = object : Observer<PointOfInterest> {
-        override fun onSuccess(data: PointOfInterest) {
-            _uiState.update { currentState ->
-                val updatedPoints = currentState.pointsOfInterest.toMutableList()
-                updatedPoints.add(data)
-                currentState.copy(
-                    pointsOfInterest = updatedPoints,
-                    isLoading = false
-                )
-            }
-        }
-
-        override fun onError(error: Throwable) {
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    error = "Error loading points of interest: ${error.message}"
-                )
-            }
-        }
-    }
-
-    init {
-        PointOfInterestRepository.addObserver(pointsOfInterestObserver)
-        loadPointsOfInterest()
-    }
-
-    override fun onCleared() {
-        PointOfInterestRepository.removeObserver(pointsOfInterestObserver)
-        super.onCleared()
-    }
-
-    private fun loadPointsOfInterest() {
-        _uiState.update {
-            it.copy(
-                pointsOfInterest = emptyList(),
-                isLoading = true
-            )
-        }
-        PointOfInterestRepository.fetch()
-    }
-}
-
-fun getUserLocation(context: Context, callback: (Location?) -> Unit) {
+fun getUserLocation(context: Context, viewModel: NearbyPointsViewModel? = null, callback: (Location?) -> Unit) {
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
     if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
         ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            // Actualizar la ubicación en el ViewModel cuando está disponible
+            location?.let {
+                viewModel?.updateUserLocation(it.latitude, it.longitude)
+            }
+
             callback(location)
         }
     } else {
@@ -158,9 +108,9 @@ fun getUserLocation(context: Context, callback: (Location?) -> Unit) {
 @Composable
 fun ScanScreen(
     onNavigateBack: () -> Unit,
-    onCameraScanClick: () -> Unit
+    onCameraScanClick: () -> Unit,
+    viewModel: NearbyPointsViewModel = viewModel()
 ) {
-    val viewModel: NearbyPointsViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var mapInitialized by remember { mutableStateOf(false) }
@@ -180,7 +130,7 @@ fun ScanScreen(
         val locationPermissionsGranted = permissions.entries.any { it.value }
 
         if (locationPermissionsGranted) {
-            getUserLocation(context) { location ->
+            getUserLocation(context, viewModel) { location ->
                 location?.let {
                     userLocation = GeoPoint(it.latitude, it.longitude)
                     mapController?.centerMap(userLocation!!)
@@ -198,7 +148,7 @@ fun ScanScreen(
         }
 
         if (hasPermissions) {
-            getUserLocation(context) { location ->
+            getUserLocation(context, viewModel) { location ->
                 location?.let {
                     userLocation = GeoPoint(it.latitude, it.longitude)
                 }
@@ -214,7 +164,12 @@ fun ScanScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopBar(onCameraScanClick)
-        TitleBar(onNavigateBack)
+        TitleBar(
+            onNavigateBack = onNavigateBack,
+            isOfflineMode = uiState.isOfflineMode,
+            onRefresh = { viewModel.refreshFromNetwork() },
+            pointCount = uiState.pointsOfInterest.size
+        )
 
         Spacer(modifier = Modifier.weight(0.05f))
 
@@ -245,7 +200,7 @@ fun ScanScreen(
                         }
 
                         if (hasPermissions) {
-                            getUserLocation(context) { location ->
+                            getUserLocation(context, viewModel) { location ->
                                 location?.let {
                                     val userGeoPoint = GeoPoint(it.latitude, it.longitude)
                                     mapController?.centerMap(userGeoPoint)
@@ -270,6 +225,17 @@ fun ScanScreen(
                     )
                 }
             }
+
+            if (uiState.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color.White)
+                }
+            }
         }
 
         Spacer(modifier = Modifier.weight(0.05f))
@@ -279,7 +245,30 @@ fun ScanScreen(
                 .fillMaxWidth()
                 .weight(0.5f)
         ) {
-            ScrollablePointsOfInterestList(uiState.pointsOfInterest)
+            when {
+                uiState.error != null -> {
+                    Text(
+                        text = uiState.error!!,
+                        color = Color.Red,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                uiState.pointsOfInterest.isEmpty() -> {
+                    Text(
+                        text = "No hay puntos de reciclaje disponibles",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                else -> {
+                    ScrollablePointsOfInterestList(uiState.pointsOfInterest)
+                }
+            }
         }
     }
 }
@@ -320,7 +309,12 @@ private fun TopBar(onCameraScanClick: () -> Unit) {
 }
 
 @Composable
-private fun TitleBar(onNavigateBack: () -> Unit) {
+private fun TitleBar(
+    onNavigateBack: () -> Unit,
+    isOfflineMode: Boolean,
+    onRefresh: () -> Unit,
+    pointCount: Int = 0
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -336,12 +330,40 @@ private fun TitleBar(onNavigateBack: () -> Unit) {
             )
         }
 
-        Text(
-            text = "Puntos Cercanos",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Puntos Cercanos",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            // Mostrar el número de puntos visualizados
+            if (pointCount > 0) {
+                Text(
+                    text = "Mostrando los $pointCount puntos más cercanos",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        if (isOfflineMode) {
+            Text(
+                text = "Modo sin conexión",
+                fontSize = 12.sp,
+                color = Color(0xFFFF9800),
+                modifier = Modifier.padding(end = 8.dp)
+            )
+
+            IconButton(onClick = onRefresh) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh",
+                    tint = Color(0xFF00C853)
+                )
+            }
+        }
     }
 }
 
@@ -353,15 +375,51 @@ private fun ScrollablePointsOfInterestList(points: List<PointOfInterest>) {
             .padding(horizontal = 16.dp)
     ) {
         items(points) { point ->
-            Text(
-                text = "${point.address}: ${point.name}",
-                fontSize = 16.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            RecyclingPointCard(point)
         }
 
         item {
             Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun RecyclingPointCard(point: PointOfInterest) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = point.name,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = point.address,
+                fontSize = 14.sp
+            )
+
+            if (point.description.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = point.description,
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
         }
     }
 }

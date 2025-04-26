@@ -19,7 +19,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "SERVER_URL", "\"${System.getenv("SERVER_URL") ?: "192.168.1.148:8000"}\"")
+        buildConfigField("String", "SERVER_URL", "\"${System.getenv("SERVER_URL") ?: "ecosnap-back.onrender.com"}\"")
     }
 
     buildTypes {
@@ -30,7 +30,7 @@ android {
                 "proguard-rules.pro"
             )
 
-            buildConfigField("String", "SERVER_URL", "\"${System.getenv("SERVER_URL") ?: "192.168.1.148:8000"}\"")
+            buildConfigField("String", "SERVER_URL", "\"${System.getenv("SERVER_URL") ?: "https://ecosnap-back.onrender.com"}\"")
         }
     }
     compileOptions {
@@ -73,6 +73,9 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.firestore)
+
+    implementation(libs.gson)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

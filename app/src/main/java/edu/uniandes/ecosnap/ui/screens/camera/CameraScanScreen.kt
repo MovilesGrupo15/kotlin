@@ -141,7 +141,7 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
     val detections = remember { mutableStateOf<List<DetectionResult>>(emptyList()) }
     val connectionState = remember { mutableStateOf(ConnectionState.DISCONNECTED) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    val wsMgr = remember { WebSocketManager("ws://${BuildConfig.SERVER_URL}/detect") }
+    val wsMgr = remember { WebSocketManager("wss://${BuildConfig.SERVER_URL}/detect") }
     val imageCapture = remember { mutableStateOf<ImageCapture?>(null) }
     val detectToken = remember { mutableStateOf<SubscriptionToken?>(null) }
     val connToken = remember { mutableStateOf<SubscriptionToken?>(null) }
