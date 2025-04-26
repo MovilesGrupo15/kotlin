@@ -35,7 +35,9 @@ class LoginViewModel : ViewModel() {
                     error = if (!result) "Autenticación fallida" else ""
                 )
             }
-            if (result) Analytics.userLoggedIn(data!!.id)
+            if (result && data != null) {
+                Analytics.userLoggedIn(data.id)
+            }
             Log.d("LoginViewModel", "Authentication status: $result")
         }
 
@@ -104,6 +106,16 @@ class LoginViewModel : ViewModel() {
         )
 
         AuthRepository.register(userProfile)
+    }
+
+    fun signInAnonymously() {
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                error = ""
+            )
+        }
+        AuthRepository.setAnonymous()
     }
 
     fun resetError() {

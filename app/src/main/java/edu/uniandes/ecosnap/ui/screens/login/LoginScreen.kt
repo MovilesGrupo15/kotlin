@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -50,7 +51,8 @@ fun LoginScreen(
                     onValueChange = { viewModel.updateName(it) },
                     label = { Text("Nombre") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    enabled = !uiState.isLoading
                 )
             }
 
@@ -60,7 +62,8 @@ fun LoginScreen(
                 label = { Text("Correo electrónico") },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true
+                singleLine = true,
+                enabled = !uiState.isLoading
             )
 
             OutlinedTextField(
@@ -70,7 +73,8 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                singleLine = true
+                singleLine = true,
+                enabled = !uiState.isLoading
             )
 
             if (uiState.error.isNotEmpty()) {
@@ -104,7 +108,8 @@ fun LoginScreen(
             }
 
             TextButton(
-                onClick = { viewModel.toggleRegistrationMode() }
+                onClick = { viewModel.toggleRegistrationMode() },
+                enabled = !uiState.isLoading
             ) {
                 Text(
                     text = if (uiState.isRegistrationMode)
@@ -112,6 +117,27 @@ fun LoginScreen(
                     else
                         "¿No tienes cuenta? Regístrate"
                 )
+            }
+        }
+
+        Button(
+            onClick = { viewModel.signInAnonymously() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Gray,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ),
+            enabled = !uiState.isLoading
+        ) {
+            if (uiState.isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text("Continuar sin ingresar")
             }
         }
     }
