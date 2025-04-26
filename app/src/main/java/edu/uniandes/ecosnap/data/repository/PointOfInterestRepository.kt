@@ -13,7 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 object PointOfInterestRepository: ObservableRepository<PointOfInterest> {
-    private const val baseUrl = "http://${BuildConfig.SERVER_URL}"
+    private const val baseUrl = "https://${BuildConfig.SERVER_URL}"
     private val client = HttpClientProvider.createClient()
     private val poiObservable = Observable<PointOfInterest>()
 
