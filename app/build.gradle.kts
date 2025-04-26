@@ -19,7 +19,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "SERVER_URL", "\"${System.getenv("SERVER_URL") ?: "https://ecosnap-back.onrender.com"}\"")
+        buildConfigField("String", "SERVER_URL", "\"${System.getenv("SERVER_URL") ?: "ecosnap-back.onrender.com"}\"")
     }
 
     buildTypes {

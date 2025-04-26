@@ -15,7 +15,7 @@ import edu.uniandes.ecosnap.BuildConfig
 
 
 object OfferRepository: ObservableRepository<Offer> {
-    private val baseUrl = "http://${BuildConfig.SERVER_URL}"
+    private val baseUrl = "https://${BuildConfig.SERVER_URL}"
     private val client = HttpClientProvider.createClient()
     private val offerObservable = Observable<Offer>()
 
