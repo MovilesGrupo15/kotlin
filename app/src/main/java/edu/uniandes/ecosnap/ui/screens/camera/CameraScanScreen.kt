@@ -2,41 +2,22 @@ package edu.uniandes.ecosnap.ui.screens.camera
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,13 +25,17 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.text.drawText
 import androidx.core.content.ContextCompat
+import edu.uniandes.ecosnap.Analytics
+import edu.uniandes.ecosnap.BuildConfig
 import edu.uniandes.ecosnap.data.pub.Publisher
 import edu.uniandes.ecosnap.data.pub.Subscriber
 import edu.uniandes.ecosnap.data.pub.SubscriptionToken
@@ -58,128 +43,91 @@ import edu.uniandes.ecosnap.domain.model.DetectionResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
+import okhttp3.*
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicLong
 
+enum class ConnectionState { CONNECTING, CONNECTED, FAILED, DISCONNECTED }
 
-class DetectionPublisher : Publisher<List<DetectionResult>> {
-    private val subscribers = ConcurrentHashMap<SubscriptionToken, Subscriber<List<DetectionResult>>>()
-    private val idGenerator = AtomicLong(0)
-
-    override fun subscribe(subscriber: Subscriber<List<DetectionResult>>): SubscriptionToken {
-        val token = SubscriptionToken(idGenerator.incrementAndGet())
-        subscribers[token] = subscriber
-        return token
-    }
-
-    override fun unsubscribe(token: SubscriptionToken) {
-        subscribers.remove(token)
-    }
-
-    override fun publish(data: List<DetectionResult>) {
-        subscribers.values.forEach { subscriber ->
-            subscriber.onNext(data)
-        }
-    }
-
-    fun publishError(error: Throwable) {
-        subscribers.values.forEach { subscriber ->
-            subscriber.onError(error)
-        }
-    }
-
-    fun hasSubscribers(): Boolean = subscribers.isNotEmpty()
+class SimplePublisher<T> : Publisher<T> {
+    private val subs = ConcurrentHashMap<SubscriptionToken, Subscriber<T>>()
+    private val idGen = AtomicLong()
+    override fun subscribe(s: Subscriber<T>) = SubscriptionToken(idGen.incrementAndGet()).also { subs[it] = s }
+    override fun unsubscribe(t: SubscriptionToken) { subs.remove(t) }
+    fun publishNext(v: T) { subs.values.forEach { it.onNext(v) } }
+    fun publishError(e: Throwable) { subs.values.forEach { it.onError(e) } }
+    fun hasSubscribers() = subs.isNotEmpty()
+    override fun publish(data: T) = publishNext(data)
 }
 
 class WebSocketManager(private val url: String) {
-    private val client = OkHttpClient.Builder()
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
+    private val client = OkHttpClient.Builder().readTimeout(0, TimeUnit.MILLISECONDS).build()
+    private val reconnectScheduler = Executors.newSingleThreadScheduledExecutor()
     private var webSocket: WebSocket? = null
-
-    val detectionPublisher = DetectionPublisher()
+    private var retryCount = 0
+    val detectionPublisher = SimplePublisher<List<DetectionResult>>()
+    val connectionPublisher = SimplePublisher<ConnectionState>()
 
     fun connect() {
-        val request = Request.Builder()
-            .url(url)
-            .build()
-
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d("WebSocket", "Connection opened")
+        connectionPublisher.publishNext(ConnectionState.CONNECTING)
+        val req = Request.Builder().url(url).build()
+        webSocket = client.newWebSocket(req, object : WebSocketListener() {
+            override fun onOpen(ws: WebSocket, resp: Response) {
+                retryCount = 0
+                connectionPublisher.publishNext(ConnectionState.CONNECTED)
             }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
+            override fun onMessage(ws: WebSocket, text: String) {
                 try {
-                    val detections = Json.decodeFromString<List<DetectionResult>>(text)
-                    detectionPublisher.publish(detections)
+                    val list = Json.decodeFromString<List<DetectionResult>>(text)
+                    detectionPublisher.publish(list)
                 } catch (e: Exception) {
                     detectionPublisher.publishError(e)
-                    Log.e("WebSocket", "Error parsing message: $text", e)
                 }
             }
-
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                Log.d("WebSocket", "Received binary message of size ${bytes.size}")
+            override fun onFailure(ws: WebSocket, t: Throwable, resp: Response?) {
+                connectionPublisher.publishNext(ConnectionState.FAILED)
+                scheduleReconnect()
             }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                detectionPublisher.publishError(t)
-                Log.e("WebSocket", "Connection failure", t)
-            }
-
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                Log.d("WebSocket", "Connection closing: $code, $reason")
-                webSocket.close(1000, null)
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.d("WebSocket", "Connection closed: $code, $reason")
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                connectionPublisher.publishNext(ConnectionState.DISCONNECTED)
             }
         })
     }
 
-    fun sendImage(imageBytes: ByteArray) {
-        if (detectionPublisher.hasSubscribers()) {
-            webSocket?.send(imageBytes.toByteString(0, imageBytes.size))
-        }
+    private fun scheduleReconnect() {
+        if (retryCount >= 5) return
+        val delay = (1 shl retryCount).coerceAtMost(30).toLong()
+        retryCount++
+        reconnectScheduler.schedule({ connect() }, delay, TimeUnit.SECONDS)
+    }
+
+    fun sendImage(bytes: ByteArray) {
+        if (detectionPublisher.hasSubscribers()) webSocket?.send(bytes.toByteString())
     }
 
     fun disconnect() {
-        webSocket?.close(1000, "User finished")
-        webSocket = null
+        webSocket?.close(1000, "bye")
+        reconnectScheduler.shutdown()
     }
 }
 
 class ImageCaptureManager(
     private val imageCapture: ImageCapture,
     private val executor: Executor,
-    private val webSocketManager: WebSocketManager
+    private val wsMgr: WebSocketManager
 ) {
     fun captureAndSend() {
         imageCapture.takePicture(executor, object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                val buffer = image.planes[0].buffer
-                val bytes = ByteArray(buffer.remaining())
-                buffer.get(bytes)
-
-                webSocketManager.sendImage(bytes)
-
-                image.close()
+            override fun onCaptureSuccess(img: ImageProxy) {
+                val buf = img.planes[0].buffer
+                val bytes = ByteArray(buf.remaining()).apply { buf.get(this) }
+                wsMgr.sendImage(bytes)
+                img.close()
             }
-
-            override fun onError(exception: ImageCaptureException) {
-                Log.e("CameraScan", "Image capture failed", exception)
+            override fun onError(exc: ImageCaptureException) {
+                Log.e("CameraScan", "capture failed", exc)
             }
         })
     }
@@ -189,182 +137,208 @@ class ImageCaptureManager(
 fun CameraScanScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val textMeasurer = rememberTextMeasurer()
-    var hasCameraPermission by remember { mutableStateOf(false) }
-    var detections by remember { mutableStateOf<List<DetectionResult>>(emptyList()) }
+    val hasCamPerm = remember { mutableStateOf(false) }
+    val detections = remember { mutableStateOf<List<DetectionResult>>(emptyList()) }
+    val connectionState = remember { mutableStateOf(ConnectionState.DISCONNECTED) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    val webSocketManager = remember { WebSocketManager("ws://192.168.1.107:8000/detect") }
-    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
-    var subscriptionToken by remember { mutableStateOf<SubscriptionToken?>(null) }
+    val wsMgr = remember { WebSocketManager("ws://${BuildConfig.SERVER_URL}/detect") }
+    val imageCapture = remember { mutableStateOf<ImageCapture?>(null) }
+    val detectToken = remember { mutableStateOf<SubscriptionToken?>(null) }
+    val connToken = remember { mutableStateOf<SubscriptionToken?>(null) }
+    val captureScheduler = remember { Executors.newScheduledThreadPool(1) }
+    val captureFuture = remember { mutableStateOf<ScheduledFuture<*>?>(null) }
+    val showFeedback = remember { mutableStateOf(false) }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+    val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasCameraPermission = isGranted
-    }
+    ) { hasCamPerm.value = it }
 
     LaunchedEffect(Unit) {
-        hasCameraPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
+        hasCamPerm.value = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasCameraPermission) {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-
-        webSocketManager.connect()
-
-        val subscriber = object : Subscriber<List<DetectionResult>> {
+        if (!hasCamPerm.value) permLauncher.launch(Manifest.permission.CAMERA)
+        Analytics.screenEvent("camera_scan")
+        Analytics.actionEvent("camera_scan_start")
+        wsMgr.connect()
+        detectToken.value = wsMgr.detectionPublisher.subscribe(object : Subscriber<List<DetectionResult>> {
             override fun onNext(data: List<DetectionResult>) {
-                detections = data
+                Analytics.firebaseAnalytics.logEvent("camera_scan_success", Bundle().apply {
+                    putString("count", data.size.toString())
+                    data.groupBy { it.type }.forEach { (k,v) -> putString(k, v.size.toString()) }
+                })
+                detections.value = data
             }
-
-            override fun onError(error: Throwable) {
-                Log.e("CameraScan", "Detection error", error)
+            override fun onError(e: Throwable) {
+                Analytics.actionEvent("camera_scan_error")
+                Log.e("CameraScan", "error", e)
             }
-        }
-
-        subscriptionToken = webSocketManager.detectionPublisher.subscribe(subscriber)
+        })
+        connToken.value = wsMgr.connectionPublisher.subscribe(object : Subscriber<ConnectionState> {
+            override fun onNext(v: ConnectionState) { connectionState.value = v }
+            override fun onError(e: Throwable) {}
+        })
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            subscriptionToken?.let { token ->
-                webSocketManager.detectionPublisher.unsubscribe(token)
-            }
-            webSocketManager.disconnect()
+            detectToken.value?.let { wsMgr.detectionPublisher.unsubscribe(it) }
+            connToken.value?.let { wsMgr.connectionPublisher.unsubscribe(it) }
+            wsMgr.disconnect()
             cameraExecutor.shutdown()
+            captureScheduler.shutdown()
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize()) {
         TopBar()
         TitleBar(onNavigateBack)
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.6f)
-        ) {
-            if (hasCameraPermission) {
-                CameraPreview { captureUseCase ->
-                    imageCapture = captureUseCase
+        val color = when (connectionState.value) {
+            ConnectionState.CONNECTING -> Color.Yellow
+            ConnectionState.FAILED, ConnectionState.DISCONNECTED -> Color.Red
+            else -> Color.Gray
+        }
+        Box(Modifier.fillMaxWidth().background(color).padding(4.dp),
+            contentAlignment = Alignment.Center) {
+            Text(connectionState.value.name, color = Color.Black)
+        }
+        Box(Modifier.fillMaxSize().weight(1f)) {
+            if (hasCamPerm.value) {
+                CameraPreview { ic ->
+                    imageCapture.value = ic
                 }
-
-                LaunchedEffect(imageCapture) {
-                    val captureUseCase = imageCapture ?: return@LaunchedEffect
-                    val imageCaptureManager = ImageCaptureManager(
-                        captureUseCase,
-                        cameraExecutor,
-                        webSocketManager
-                    )
-
-                    while (true) {
-                        imageCaptureManager.captureAndSend()
-                        withContext(Dispatchers.IO) {
-                            Thread.sleep(500)
-                        }
+                LaunchedEffect(imageCapture.value, connectionState.value) {
+                    captureFuture.value?.cancel(false)
+                    captureFuture.value = null
+                    val ic = imageCapture.value
+                    if (ic != null && connectionState.value == ConnectionState.CONNECTED) {
+                        val mgr = ImageCaptureManager(ic, cameraExecutor, wsMgr)
+                        captureFuture.value = captureScheduler.scheduleWithFixedDelay({
+                            mgr.captureAndSend()
+                        }, 0, 500, TimeUnit.MILLISECONDS)
                     }
                 }
-
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val canvasWidth = size.width
-                    val canvasHeight = size.height
-
-                    val typeColors = mapOf(
-                        "plastic" to Color.Blue,
-                        "paper" to Color.Yellow,
-                        "glass" to Color.Cyan,
-                        "metal" to Color.Red,
+                Canvas(Modifier.fillMaxSize()) {
+                    val w = size.width; val h = size.height
+                    val colors = mapOf(
+                        "plastic" to Color.Blue, "paper" to Color.Yellow,
+                        "glass" to Color.Cyan, "metal" to Color.Red,
                         "organic" to Color.Green
                     )
-
-                    detections.forEach { detection ->
-                        val x = detection.bbox[0] * canvasWidth
-                        val y = detection.bbox[1] * canvasHeight
-                        val width = detection.bbox[2] * canvasWidth
-                        val height = detection.bbox[3] * canvasHeight
-
-                        val color = typeColors[detection.type] ?: Color.White
-
-                        drawRect(
-                            color = color,
-                            topLeft = androidx.compose.ui.geometry.Offset(x, y),
-                            size = androidx.compose.ui.geometry.Size(width, height),
-                            style = Stroke(width = 3f)
-                        )
-
-                        val label = "${detection.type} (${(detection.confidence * 100).toInt()}%)"
-                        drawText(
-                            textMeasurer = textMeasurer,
-                            text = label,
-                            topLeft = androidx.compose.ui.geometry.Offset(x, y - 15f),
-                            style = TextStyle(
-                                color = color,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                background = Color.Black.copy(alpha = 0.7f)
-                            )
-                        )
+                    detections.value.forEach { d ->
+                        val x = d.bbox[0] * w; val y = d.bbox[1] * h
+                        val ww = d.bbox[2] * w; val hh = d.bbox[3] * h
+                        val col = colors[d.type] ?: Color.White
+                        drawRect(col, topLeft = androidx.compose.ui.geometry.Offset(x, y),
+                            size = androidx.compose.ui.geometry.Size(ww, hh),
+                            style = Stroke(3f))
+                        drawText(textMeasurer, "${d.type} ${(d.confidence*100).toInt()}%",
+                            androidx.compose.ui.geometry.Offset(x, y - 15f),
+                            style = TextStyle(col, 14.sp, FontWeight.Bold,
+                                background = Color.Black.copy(alpha=0.7f)))
                     }
                 }
             } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Camera permission required",
-                            color = Color.White,
-                            modifier = Modifier.padding(bottom = 16.dp)
-                        )
-                        Button(
-                            onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF00C853)
-                            )
-                        ) {
+                Box(Modifier.fillMaxSize().background(Color.Black),
+                    contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Camera permission required", color = Color.White)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = { permLauncher.launch(Manifest.permission.CAMERA) },
+                            colors = ButtonDefaults.buttonColors(Color(0xFF00C853))) {
                             Text("Grant Camera Permission")
                         }
                     }
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+            Button(onClick = {
+                wsMgr.detectionPublisher.unsubscribe(detectToken.value!!)
+                wsMgr.disconnect()
+                showFeedback.value = true
+            }, Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(Color(0xFF00C853))) {
+                Text("Ready", fontSize=18.sp, fontWeight=FontWeight.Bold)
+            }
+        }
+    }
 
-        Spacer(modifier = Modifier.height(16.dp))
+    if (showFeedback.value) {
+        FeedbackDialog(
+            onDismiss = { showFeedback.value = false },
+            onSend = { r, msg ->
+                Analytics.firebaseAnalytics.logEvent("detection_feedback", Bundle().apply {
+                    putInt("rating", r)
+                    if (msg.isNotBlank()) putString("message", msg)
+                })
+                showFeedback.value = false
+                onNavigateBack()
+            },
+            onNotNow = {
+                showFeedback.value = false
+                onNavigateBack()
+            }
+        )
+    }
+}
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Button(
-                onClick = {
-                    subscriptionToken?.let { token ->
-                        webSocketManager.detectionPublisher.unsubscribe(token)
-                    }
-                    webSocketManager.disconnect()
-                    onNavigateBack()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00C853)
-                )
-            ) {
-                Text(
-                    text = "Ready",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+@Composable
+fun FeedbackDialog(
+    onDismiss: () -> Unit,
+    onSend: (Int, String) -> Unit,
+    onNotNow: () -> Unit
+) {
+    var rating by remember { mutableStateOf(0) }
+    var message by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Detection Feedback") },
+        text = {
+            Column {
+                Text("Please rate the detection accuracy (optional):")
+                RatingBar(rating = rating, onRatingChanged = { rating = it })
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it },
+                    label = { Text("Optional message") },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
+        },
+        confirmButton = {
+            Button(onClick = { onSend(rating, message) }, enabled = rating > 0) {
+                Text("Send")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onNotNow) { Text("Not Now") }
+        },
+        properties = DialogProperties(dismissOnClickOutside = false)
+    )
+}
+
+@Composable
+fun RatingBar(
+    modifier: Modifier = Modifier,
+    rating: Int,
+    onRatingChanged: (Int) -> Unit,
+    stars: Int = 5,
+    starColor: Color = Color(0xFFFFC107)
+) {
+    Row(modifier.padding(vertical=8.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (i in 1..stars) {
+            IconButton(onClick = { onRatingChanged(i) }) {
+                Icon(
+                    imageVector = if (i <= rating) Icons.Filled.Star else Icons.Outlined.Star,
+                    contentDescription = null,
+                    tint = if (i <= rating) starColor else Color.Gray.copy(alpha=0.5f),
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+            if (i<stars) Spacer(Modifier.width(4.dp))
         }
     }
 }
@@ -372,90 +346,45 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
 @Composable
 fun CameraPreview(onPreviewReady: (ImageCapture) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    AndroidView(
-        factory = { ctx ->
-            val previewView = PreviewView(ctx).apply {
-                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                scaleType = PreviewView.ScaleType.FILL_CENTER
+    AndroidView(factory = { ctx ->
+        PreviewView(ctx).apply {
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            ProcessCameraProvider.getInstance(ctx).also { fut ->
+                fut.addListener({
+                    val provider = fut.get()
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(surfaceProvider)
+                    }
+                    val ic = ImageCapture.Builder()
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                        .build()
+                    provider.unbindAll()
+                    provider.bindToLifecycle(lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA, preview, ic)
+                    onPreviewReady(ic)
+                }, ContextCompat.getMainExecutor(ctx))
             }
-
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
-
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-
-                val imageCapture = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .build()
-
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        imageCapture
-                    )
-
-                    onPreviewReady(imageCapture)
-                } catch (e: Exception) {
-                    Log.e("CameraPreview", "Use case binding failed", e)
-                }
-            }, ContextCompat.getMainExecutor(ctx))
-
-            previewView
-        },
-        modifier = Modifier.fillMaxSize()
-    )
+        }
+    }, modifier=Modifier.fillMaxSize())
 }
 
 @Composable
 private fun TopBar() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF00C853))
-            .padding(16.dp)
-    ) {
-        IconButton(
-            onClick = { },
-            modifier = Modifier.align(Alignment.CenterStart)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Menu",
-                tint = Color.Black
-            )
+    Box(Modifier.fillMaxWidth().background(Color(0xFF00C853)).padding(16.dp)) {
+        IconButton(onClick = {}, Modifier.align(Alignment.CenterStart)) {
+            Icon(Icons.Filled.Menu, contentDescription = null, tint = Color.Black)
         }
     }
 }
 
 @Composable
 private fun TitleBar(onNavigateBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(Modifier.fillMaxWidth().background(Color.White).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onNavigateBack) {
-            Icon(
-                imageVector = Icons.Default.ArrowBack,
-                contentDescription = "Back",
-                tint = Color.Black
-            )
+            Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Color.Black)
         }
-
-        Text(
-            text = "Camera Scan",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Text("Camera Scan", fontSize=28.sp, fontWeight=FontWeight.Bold, color=Color.Black)
     }
 }
