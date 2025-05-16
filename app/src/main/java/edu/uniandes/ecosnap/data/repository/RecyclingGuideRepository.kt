@@ -33,27 +33,23 @@ object RecyclingGuideRepository {
     private val scope = CoroutineScope(Dispatchers.IO)
     private lateinit var localStorageManager: LocalStorageManager
 
-    // Indicador de si el repositorio está inicializado
     private var isInitialized = false
 
-    // URL del backend local
-    private const val API_BASE_URL = "http://10.0.2.2:8000"  // Para emulador Android
-    // Si usas dispositivo físico, cambia por la IP de tu máquina, ej: "http://192.168.1.100:8000"
 
-    // Cliente HTTP con timeout configurado
+    private const val API_BASE_URL = "https://ecosnap-back.onrender.com"
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // JSON parser con configuración flexible
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
 
-    // Datos de muestra de respaldo (en caso de que el backend no esté disponible)
+
     private val sampleRecyclingGuide = listOf(
         RecyclingGuideItem(
             id = "plastic-1",
@@ -121,9 +117,7 @@ object RecyclingGuideRepository {
         )
     )
 
-    /**
-     * Inicializa el repositorio con un contexto
-     */
+
     fun initialize(context: Context) {
         if (!isInitialized) {
             localStorageManager = LocalStorageManager(context)
@@ -139,9 +133,7 @@ object RecyclingGuideRepository {
         observable.removeObserver(observer)
     }
 
-    /**
-     * Obtiene datos de la guía de reciclaje, primero del storage local, luego del backend
-     */
+
     fun fetch() {
         scope.launch {
             try {
@@ -196,9 +188,6 @@ object RecyclingGuideRepository {
         }
     }
 
-    /**
-     * Fuerza una actualización desde el backend
-     */
     fun forceUpdate() {
         scope.launch {
             try {
@@ -244,9 +233,7 @@ object RecyclingGuideRepository {
         }
     }
 
-    /**
-     * Obtiene datos del backend
-     */
+
     private suspend fun fetchFromBackend(): List<RecyclingGuideItem> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$API_BASE_URL/api/recycling-guide")
