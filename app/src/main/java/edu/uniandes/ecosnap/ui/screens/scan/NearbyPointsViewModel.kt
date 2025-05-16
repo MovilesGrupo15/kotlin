@@ -46,6 +46,7 @@ class NearbyPointsViewModel(application: Application) : AndroidViewModel(applica
 
                 // Guarda todos los puntos en el almacenamiento local
                 viewModelScope.launch {
+                    localStorageManager.clearRecyclingPoints()
                     localStorageManager.saveRecyclingPoints(updatedPoints)
                 }
 

@@ -2,6 +2,7 @@ package edu.uniandes.ecosnap.data.repository
 
 import android.util.Log
 import edu.uniandes.ecosnap.BuildConfig
+import edu.uniandes.ecosnap.data.cache.GlobalCache
 import edu.uniandes.ecosnap.data.observer.HttpClientProvider
 import edu.uniandes.ecosnap.data.observer.Observable
 import edu.uniandes.ecosnap.data.observer.ObservableRepository
@@ -17,6 +18,9 @@ object PointOfInterestRepository: ObservableRepository<PointOfInterest> {
     private val client = HttpClientProvider.createClient()
     private val poiObservable = Observable<PointOfInterest>()
 
+    // Cache key
+    private const val CACHE_KEY = "points"
+
     override fun addObserver(observer: Observer<PointOfInterest>) {
         poiObservable.addObserver(observer)
     }
@@ -27,6 +31,12 @@ object PointOfInterestRepository: ObservableRepository<PointOfInterest> {
 
     override fun fetch() {
         if (!poiObservable.hasObservers()) return
+
+        // Return instantly if cached
+        GlobalCache.cache.get(CACHE_KEY)?.let { cached ->
+            cached.forEach { poiObservable.notifySuccess(it as PointOfInterest) }
+            return
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
