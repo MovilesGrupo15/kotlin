@@ -2,6 +2,7 @@ package edu.uniandes.ecosnap.data.repository
 
 import android.util.Log
 import edu.uniandes.ecosnap.BuildConfig
+import edu.uniandes.ecosnap.data.cache.GlobalCache
 import edu.uniandes.ecosnap.data.cache.InMemoryCache       // new import
 import edu.uniandes.ecosnap.data.observer.HttpClientProvider
 import edu.uniandes.ecosnap.data.observer.Observable
@@ -18,8 +19,7 @@ object OfferRepository: ObservableRepository<Offer> {
     private val client = HttpClientProvider.createClient()
     private val offerObservable = Observable<Offer>()
 
-    // Cache
-    private val cache = InMemoryCache<String, List<Offer>>(maxSize = 20)
+    // Cache key
     private const val CACHE_KEY = "offers"
 
     override fun addObserver(observer: Observer<Offer>) {
@@ -32,8 +32,8 @@ object OfferRepository: ObservableRepository<Offer> {
 
     override fun fetch() {
         // Return instantly if cached
-        cache.get(CACHE_KEY)?.let { cached ->
-            cached.forEach { offerObservable.notifySuccess(it) }
+        GlobalCache.cache.get(CACHE_KEY)?.let { cached ->
+            cached.forEach { offerObservable.notifySuccess(it as Offer) }
             return
         }
 
@@ -45,7 +45,7 @@ object OfferRepository: ObservableRepository<Offer> {
                 val offers = client.get<List<Offer>>("$baseUrl/api/offers")
 
                 // store response in cache
-                cache.put(CACHE_KEY, offers)
+                GlobalCache.cache.put(CACHE_KEY, offers)
 
                 // emit each Offer
                 offers.forEach { offer ->
