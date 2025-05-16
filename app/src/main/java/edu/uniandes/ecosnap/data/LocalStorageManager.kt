@@ -5,16 +5,19 @@ import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import edu.uniandes.ecosnap.domain.model.PointOfInterest
+import edu.uniandes.ecosnap.domain.model.RecyclingGuideItem
 import java.lang.reflect.Type
 
 /**
  * Administra el almacenamiento local de los puntos de reciclaje cercanos
+ * y la información de la guía de reciclaje
  */
 class LocalStorageManager(context: Context) {
 
     companion object {
         private const val PREF_NAME = "ecosnap_preferences"
         private const val RECYCLING_POINTS_KEY = "recycling_points"
+        private const val RECYCLING_GUIDE_KEY = "recycling_guide_items"
     }
 
     private val sharedPreferences: SharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -69,6 +72,58 @@ class LocalStorageManager(context: Context) {
             // Reemplaza el punto existente con el actualizado
             points[index] = updatedPoint
             saveRecyclingPoints(points)
+        }
+    }
+
+    /**
+     * Guarda una lista de elementos de la guía de reciclaje en el almacenamiento local
+     * @param items Lista de elementos de la guía a guardar
+     */
+    fun saveRecyclingGuideItems(items: List<RecyclingGuideItem>) {
+        val json = gson.toJson(items)
+        sharedPreferences.edit().putString(RECYCLING_GUIDE_KEY, json).apply()
+    }
+
+    /**
+     * Recupera la lista de elementos de la guía de reciclaje del almacenamiento local
+     * @return Lista de elementos de la guía guardados
+     */
+    fun getRecyclingGuideItems(): List<RecyclingGuideItem> {
+        val json = sharedPreferences.getString(RECYCLING_GUIDE_KEY, null)
+        return if (json != null) {
+            val type: Type = object : TypeToken<List<RecyclingGuideItem>>() {}.type
+            try {
+                gson.fromJson(json, type) ?: emptyList()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
+    /**
+     * Elimina todos los elementos de la guía de reciclaje del almacenamiento local
+     */
+    fun clearRecyclingGuideItems() {
+        sharedPreferences.edit().remove(RECYCLING_GUIDE_KEY).apply()
+    }
+
+    /**
+     * Actualiza un elemento específico de la guía de reciclaje en el almacenamiento local
+     * @param updatedItem Elemento de la guía actualizado
+     */
+    fun updateRecyclingGuideItem(updatedItem: RecyclingGuideItem) {
+        val items = getRecyclingGuideItems().toMutableList()
+
+        // Encuentra el índice del elemento con el mismo ID
+        val index = items.indexOfFirst { it.id == updatedItem.id }
+
+        if (index != -1) {
+            // Reemplaza el elemento existente con el actualizado
+            items[index] = updatedItem
+            saveRecyclingGuideItems(items)
         }
     }
 }
