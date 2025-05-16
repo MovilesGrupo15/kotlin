@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -109,6 +111,7 @@ fun getUserLocation(context: Context, viewModel: NearbyPointsViewModel? = null, 
 fun ScanScreen(
     onNavigateBack: () -> Unit,
     onCameraScanClick: () -> Unit,
+    onRecyclingGuideClick: () -> Unit, // New parameter
     viewModel: NearbyPointsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -163,7 +166,10 @@ fun ScanScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TopBar(onCameraScanClick)
+        TopBar(
+            onCameraScanClick = onCameraScanClick,
+            onRecyclingGuideClick = onRecyclingGuideClick // Pass the recycling guide navigation function
+        )
         TitleBar(
             onNavigateBack = onNavigateBack,
             isOfflineMode = uiState.isOfflineMode,
@@ -274,7 +280,10 @@ fun ScanScreen(
 }
 
 @Composable
-private fun TopBar(onCameraScanClick: () -> Unit) {
+private fun TopBar(
+    onCameraScanClick: () -> Unit,
+    onRecyclingGuideClick: () -> Unit // New parameter
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -289,6 +298,28 @@ private fun TopBar(onCameraScanClick: () -> Unit) {
                 imageVector = Icons.Default.Menu,
                 contentDescription = "Menu",
                 tint = Color.Black
+            )
+        }
+
+        // New Recycling Guide button in center
+        Button(
+            onClick = onRecyclingGuideClick,
+            modifier = Modifier.align(Alignment.Center),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = Color(0xFF00C853)
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = "Recycling Guide",
+                tint = Color(0xFF00C853)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "Guía de Reciclaje",
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
             )
         }
 
