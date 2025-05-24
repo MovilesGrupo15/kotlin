@@ -1,6 +1,9 @@
 package edu.uniandes.ecosnap.data.repository
 
 import android.util.Log
+import edu.uniandes.ecosnap.BuildConfig
+import edu.uniandes.ecosnap.data.cache.GlobalCache
+import edu.uniandes.ecosnap.data.cache.InMemoryCache       // new import
 import edu.uniandes.ecosnap.data.observer.HttpClientProvider
 import edu.uniandes.ecosnap.data.observer.Observable
 import edu.uniandes.ecosnap.data.observer.ObservableRepository
@@ -10,14 +13,14 @@ import io.ktor.client.request.get
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import edu.uniandes.ecosnap.BuildConfig
-
-
 
 object OfferRepository: ObservableRepository<Offer> {
     private val baseUrl = "https://${BuildConfig.SERVER_URL}"
     private val client = HttpClientProvider.createClient()
     private val offerObservable = Observable<Offer>()
+
+    // Cache key
+    private const val CACHE_KEY = "offers"
 
     override fun addObserver(observer: Observer<Offer>) {
         offerObservable.addObserver(observer)
@@ -28,12 +31,23 @@ object OfferRepository: ObservableRepository<Offer> {
     }
 
     override fun fetch() {
+        // Return instantly if cached
+        GlobalCache.cache.get(CACHE_KEY)?.let { cached ->
+            cached.forEach { offerObservable.notifySuccess(it as Offer) }
+            return
+        }
+
+        // Otherwise fetch from network
         if (!offerObservable.hasObservers()) return
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val offers = client.get<List<Offer>>("$baseUrl/api/offers")
 
+                // store response in cache
+                GlobalCache.cache.put(CACHE_KEY, offers)
+
+                // emit each Offer
                 offers.forEach { offer ->
                     offerObservable.notifySuccess(offer)
                 }

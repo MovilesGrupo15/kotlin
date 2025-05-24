@@ -10,6 +10,7 @@ import edu.uniandes.ecosnap.ui.screens.camera.CameraScanScreen
 import edu.uniandes.ecosnap.ui.screens.home.HomeScreen
 import edu.uniandes.ecosnap.ui.screens.login.LoginScreen
 import edu.uniandes.ecosnap.ui.screens.redeem.RedeemScreen
+import edu.uniandes.ecosnap.ui.screens.scan.RecyclingGuideScreen
 import edu.uniandes.ecosnap.ui.screens.scan.ScanScreen
 
 object AppDestinations {
@@ -18,6 +19,7 @@ object AppDestinations {
     const val SCAN_ROUTE = "scan"
     const val REDEEM_ROUTE = "redeem"
     const val CAMERA_SCAN = "camera_scan"
+    const val RECYCLING_GUIDE_ROUTE = "recycling_guide" // New route
 }
 
 @Composable
@@ -48,6 +50,14 @@ fun AppNavHost(navController: NavHostController) {
 
         composable(AppDestinations.SCAN_ROUTE) {
             ScanScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onCameraScanClick = { navController.navigate(AppDestinations.CAMERA_SCAN) },
+                onRecyclingGuideClick = { navController.navigate(AppDestinations.RECYCLING_GUIDE_ROUTE) }
+            )
+        }
+
+        composable(AppDestinations.RECYCLING_GUIDE_ROUTE) {
+            RecyclingGuideScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onCameraScanClick = { navController.navigate(AppDestinations.CAMERA_SCAN) }
             )
