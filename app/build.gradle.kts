@@ -73,7 +73,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.firestore)
-
+    implementation(libs.osmdroid.android)
     implementation(libs.gson)
 
     testImplementation(libs.junit)
@@ -83,6 +83,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    implementation(libs.play.services.location)
 
 
     // Dependencias para networking y serialización

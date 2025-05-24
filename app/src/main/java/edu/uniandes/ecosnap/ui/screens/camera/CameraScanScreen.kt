@@ -49,6 +49,17 @@ import okio.ByteString.Companion.toByteString
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicLong
 
+
+import edu.uniandes.ecosnap.domain.model.ScanHistoryItem
+import edu.uniandes.ecosnap.data.repository.ScanHistoryRepository
+import java.util.UUID
+
+
+
+// Al inicio del archivo, con los otros imports
+import edu.uniandes.ecosnap.ui.screens.camera.OptimizedImageCaptureManager
+import edu.uniandes.ecosnap.ui.screens.camera.OptimizedWebSocketManager
+
 enum class ConnectionState { CONNECTING, CONNECTED, FAILED, DISCONNECTED }
 
 class SimplePublisher<T> : Publisher<T> {
@@ -141,13 +152,14 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
     val detections = remember { mutableStateOf<List<DetectionResult>>(emptyList()) }
     val connectionState = remember { mutableStateOf(ConnectionState.DISCONNECTED) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    val wsMgr = remember { WebSocketManager("wss://${BuildConfig.SERVER_URL}/detect") }
+    val wsMgr = remember { OptimizedWebSocketManager("wss://${BuildConfig.SERVER_URL}/detect") }
     val imageCapture = remember { mutableStateOf<ImageCapture?>(null) }
     val detectToken = remember { mutableStateOf<SubscriptionToken?>(null) }
     val connToken = remember { mutableStateOf<SubscriptionToken?>(null) }
     val captureScheduler = remember { Executors.newScheduledThreadPool(1) }
     val captureFuture = remember { mutableStateOf<ScheduledFuture<*>?>(null) }
     val showFeedback = remember { mutableStateOf(false) }
+    val captureManager = remember { mutableStateOf<OptimizedImageCaptureManager?>(null) }
 
     val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -168,6 +180,16 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
                     data.groupBy { it.type }.forEach { (k,v) -> putString(k, v.size.toString()) }
                 })
                 detections.value = data
+                data.forEach { detection ->
+                    val historyItem = ScanHistoryItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        detectedType = detection.type,
+                        confidence = detection.confidence,
+                        timestamp = System.currentTimeMillis(),
+                        locationName = "Bogotá"
+                    )
+                    ScanHistoryRepository.saveScan(historyItem)
+                }
             }
             override fun onError(e: Throwable) {
                 Analytics.actionEvent("camera_scan_error")
@@ -185,6 +207,7 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
             detectToken.value?.let { wsMgr.detectionPublisher.unsubscribe(it) }
             connToken.value?.let { wsMgr.connectionPublisher.unsubscribe(it) }
             wsMgr.disconnect()
+            captureManager.value?.cleanup() // USAR LA REFERENCIA GUARDADA
             cameraExecutor.shutdown()
             captureScheduler.shutdown()
         }
@@ -212,7 +235,8 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
                     captureFuture.value = null
                     val ic = imageCapture.value
                     if (ic != null && connectionState.value == ConnectionState.CONNECTED) {
-                        val mgr = ImageCaptureManager(ic, cameraExecutor, wsMgr)
+                        val mgr = OptimizedImageCaptureManager(ic, cameraExecutor, wsMgr)
+                        captureManager.value = mgr // GUARDAR REFERENCIA
                         captureFuture.value = captureScheduler.scheduleWithFixedDelay({
                             mgr.captureAndSend()
                         }, 0, 500, TimeUnit.MILLISECONDS)

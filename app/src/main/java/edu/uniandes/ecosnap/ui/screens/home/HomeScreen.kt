@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,7 +47,6 @@ private fun SkeletonOfferCard(modifier: Modifier = Modifier) {
     )
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -76,6 +76,22 @@ fun HomeScreen(
                     Divider()
                     Spacer(Modifier.height(16.dp))
 
+                    // Historial de Escaneos (por ahora solo placeholder)
+                    NavigationDrawerItem(
+                        label = { Text("Historial de Escaneos") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            // TODO: Implementar navegación al historial
+                        },
+                        icon = {
+                            Icon(Icons.Default.List, contentDescription = null)
+                        }
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Cerrar Sesión
                     NavigationDrawerItem(
                         label = {
                             Text(if (uiState.isAnonymous) "Ingresar" else "Cerrar sesión")
@@ -87,7 +103,7 @@ fun HomeScreen(
                             navController.navigate("login") {
                                 popUpTo("home") { inclusive = true }
                             }
-                        },
+                        }
                     )
                 }
             }

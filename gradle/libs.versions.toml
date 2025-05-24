@@ -22,7 +22,7 @@ activityCompose = "1.8.0"
 composeBom = "2024.04.01"
 navigationCompose = "2.8.9"
 okhttp = "4.11.0"
-osmdroidAndroid = "6.1.16"
+osmdroid = "6.1.18"
 playServicesLocation = "21.3.0"
 preferenceKtx = "1.2.1"
 cameraCore = "1.4.1"
@@ -57,7 +57,7 @@ ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "k
 ktor-client-json = { module = "io.ktor:ktor-client-json", version.ref = "ktorClientJson" }
 ktor-client-serialization = { module = "io.ktor:ktor-client-serialization", version.ref = "ktorClientSerialization" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
-osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroidAndroid" }
+osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 androidx-preference-ktx = { group = "androidx.preference", name = "preference-ktx", version.ref = "preferenceKtx" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
