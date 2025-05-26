@@ -25,6 +25,7 @@ import edu.uniandes.ecosnap.ui.components.OfferCard
 import edu.uniandes.ecosnap.ui.theme.Green
 import kotlinx.coroutines.launch
 
+
 @Composable
 private fun SkeletonText(modifier: Modifier = Modifier, width: Dp) {
     Box(
@@ -80,9 +81,38 @@ fun HomeScreen(
                     NavigationDrawerItem(
                         label = { Text("Historial de Escaneos") },
                         selected = false,
+                        // En el onClick del NavigationDrawerItem del historial:
                         onClick = {
                             scope.launch { drawerState.close() }
-                            // TODO: Implementar navegación al historial
+                            navController.navigate("scan_history")
+                        },
+                        icon = {
+                            Icon(Icons.Default.List, contentDescription = null)
+                        }
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    NavigationDrawerItem(
+                        label = { Text("Puntos Visitados") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            navController.navigate("visited_points")
+                        },
+                        icon = {
+                            Icon(Icons.Default.List, contentDescription = null)
+                        }
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    NavigationDrawerItem(
+                        label = { Text("Dashboard") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            navController.navigate("dashboard")
                         },
                         icon = {
                             Icon(Icons.Default.List, contentDescription = null)

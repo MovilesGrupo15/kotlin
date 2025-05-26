@@ -60,6 +60,13 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Surface
+import edu.uniandes.ecosnap.data.repository.VisitedPointsRepository
+import edu.uniandes.ecosnap.domain.model.VisitedPointItem
+import java.util.UUID
+import androidx.compose.material3.MaterialTheme
 
 class MarkerFactory {
     fun createMarker(mapView: MapView, poi: PointOfInterest): Marker {
@@ -417,13 +424,22 @@ private fun ScrollablePointsOfInterestList(points: List<PointOfInterest>) {
 
 @Composable
 private fun RecyclingPointCard(point: PointOfInterest) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var isVisited by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // Verificar si ya está visitado
+    LaunchedEffect(point.name) {
+        VisitedPointsRepository.initialize(context)
+        isVisited = VisitedPointsRepository.isPointVisited(point.name)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
+            .padding(vertical = 4.dp)
+            .clickable { isExpanded = !isExpanded },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -450,6 +466,61 @@ private fun RecyclingPointCard(point: PointOfInterest) {
                     fontSize = 12.sp,
                     color = Color.Gray
                 )
+            }
+
+            // Contenido expandible
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (isVisited) {
+                    // Si ya está visitado, mostrar badge
+                    Surface(
+                        color = Color(0xFF4CAF50).copy(alpha = 0.1f),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "✅", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Ya visitado",
+                                fontSize = 12.sp,
+                                color = Color(0xFF4CAF50),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                } else {
+                    // Botón para marcar como visitado
+                    Button(
+                        onClick = {
+                            val visitedPoint = VisitedPointItem(
+                                id = UUID.randomUUID().toString(),
+                                pointName = point.name,
+                                address = point.address,
+                                timestamp = System.currentTimeMillis(),
+                                latitude = point.latitude,
+                                longitude = point.longitude
+                            )
+                            VisitedPointsRepository.markPointAsVisited(visitedPoint)
+                            isVisited = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C853))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Marcar como visitado")
+                    }
+                }
             }
         }
     }
