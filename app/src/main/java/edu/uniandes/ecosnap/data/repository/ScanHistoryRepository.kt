@@ -7,21 +7,21 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 
+// En data/repository/ScanHistoryRepository.kt - MODIFICAR para que sea más simple:
 object ScanHistoryRepository {
     private const val SCAN_HISTORY_KEY = "scan_history"
-    private const val PREFS_NAME = "ecosnap_prefs"
+    private var context: Context? = null
 
-    private var sharedPrefs: SharedPreferences? = null
-
-    fun initialize(context: Context) {
-        sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    fun initialize(ctx: Context) {
+        context = ctx
     }
 
     fun saveScan(historyItem: ScanHistoryItem) {
+        val sharedPrefs = context?.getSharedPreferences("ecosnap_prefs", Context.MODE_PRIVATE)
         val currentHistory = getAllScans().toMutableList()
-        currentHistory.add(0, historyItem) // Añadir al inicio
+        currentHistory.add(0, historyItem)
 
-        // Limitar a últimos 50 escaneos para no sobrecargar storage
+        // Limitar a últimos 50 escaneos
         val limitedHistory = currentHistory.take(50)
 
         val jsonString = Json.encodeToString(limitedHistory)
@@ -29,6 +29,7 @@ object ScanHistoryRepository {
     }
 
     fun getAllScans(): List<ScanHistoryItem> {
+        val sharedPrefs = context?.getSharedPreferences("ecosnap_prefs", Context.MODE_PRIVATE)
         val jsonString = sharedPrefs?.getString(SCAN_HISTORY_KEY, null) ?: return emptyList()
         return try {
             Json.decodeFromString(jsonString)
@@ -38,8 +39,4 @@ object ScanHistoryRepository {
     }
 
     fun getScanCount(): Int = getAllScans().size
-
-    fun clearHistory() {
-        sharedPrefs?.edit()?.remove(SCAN_HISTORY_KEY)?.apply()
-    }
 }

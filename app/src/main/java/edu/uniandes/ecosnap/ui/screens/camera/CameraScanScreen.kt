@@ -49,7 +49,8 @@ import okio.ByteString.Companion.toByteString
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicLong
 
-
+import android.content.Context
+import java.io.File
 import edu.uniandes.ecosnap.domain.model.ScanHistoryItem
 import edu.uniandes.ecosnap.data.repository.ScanHistoryRepository
 import java.util.UUID
@@ -144,6 +145,51 @@ class ImageCaptureManager(
     }
 }
 
+
+
+// CAMBIAR la función para que sea más simple:
+private fun capturePhotoAndSaveToHistory(
+    imageCapture: ImageCapture?,
+    executor: Executor,
+    context: Context,
+    detections: List<DetectionResult>
+) {
+    imageCapture?.let { capture ->
+        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(
+            File(context.filesDir, "scan_${System.currentTimeMillis()}.jpg")
+        ).build()
+
+        capture.takePicture(
+            outputFileOptions,
+            executor,
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    // Guardar SOLO UNA entrada en el historial por foto
+                    val primaryDetection = detections.maxByOrNull { it.confidence }
+                    val detectionType = primaryDetection?.type ?: "unknown"
+                    val confidence = primaryDetection?.confidence ?: 0.0f
+
+                    val historyItem = ScanHistoryItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        detectedType = detectionType,
+                        confidence = confidence,
+                        timestamp = System.currentTimeMillis(),
+                        locationName = "Bogotá"
+                    )
+                    ScanHistoryRepository.saveScan(historyItem)
+                    Log.d("CameraScan", "Photo saved and added to history: $detectionType")
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e("CameraScan", "Photo capture failed", exception)
+                }
+            }
+        )
+    }
+}
+
+
+
 @Composable
 fun CameraScanScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
@@ -166,6 +212,7 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
     ) { hasCamPerm.value = it }
 
     LaunchedEffect(Unit) {
+        ScanHistoryRepository.initialize(context)
         hasCamPerm.value = ContextCompat.checkSelfPermission(
             context, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
@@ -180,16 +227,6 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
                     data.groupBy { it.type }.forEach { (k,v) -> putString(k, v.size.toString()) }
                 })
                 detections.value = data
-                data.forEach { detection ->
-                    val historyItem = ScanHistoryItem(
-                        id = java.util.UUID.randomUUID().toString(),
-                        detectedType = detection.type,
-                        confidence = detection.confidence,
-                        timestamp = System.currentTimeMillis(),
-                        locationName = "Bogotá"
-                    )
-                    ScanHistoryRepository.saveScan(historyItem)
-                }
             }
             override fun onError(e: Throwable) {
                 Analytics.actionEvent("camera_scan_error")
@@ -279,6 +316,13 @@ fun CameraScanScreen(onNavigateBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
             Button(onClick = {
+                capturePhotoAndSaveToHistory(
+                    imageCapture.value,
+                    cameraExecutor,
+                    context,
+                    detections.value
+                )
+
                 wsMgr.detectionPublisher.unsubscribe(detectToken.value!!)
                 wsMgr.disconnect()
                 showFeedback.value = true
