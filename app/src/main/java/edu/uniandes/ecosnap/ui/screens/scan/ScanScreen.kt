@@ -67,6 +67,7 @@ import edu.uniandes.ecosnap.data.repository.VisitedPointsRepository
 import edu.uniandes.ecosnap.domain.model.VisitedPointItem
 import java.util.UUID
 import androidx.compose.material3.MaterialTheme
+import edu.uniandes.ecosnap.Analytics
 
 class MarkerFactory {
     fun createMarker(mapView: MapView, poi: PointOfInterest): Marker {
@@ -310,7 +311,10 @@ private fun TopBar(
 
         // New Recycling Guide button in center
         Button(
-            onClick = onRecyclingGuideClick,
+            onClick = {
+                Analytics.buttonEvent("recycling_guide", "scan_screen")
+                onRecyclingGuideClick()
+            },
             modifier = Modifier.align(Alignment.Center),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.White,
@@ -331,7 +335,10 @@ private fun TopBar(
         }
 
         Button(
-            onClick = onCameraScanClick,
+            onClick = {
+                Analytics.buttonEvent("camera_scan", "scan_screen")
+                onCameraScanClick()
+            },
             modifier = Modifier.align(Alignment.CenterEnd),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color.White,

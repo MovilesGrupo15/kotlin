@@ -15,8 +15,11 @@ object Analytics {
         firebaseAnalytics.setUserId(userId)
     }
 
-    fun buttonEvent(buttonName: String) {
-
+    fun buttonEvent(buttonName: String, screenName: String) {
+        firebaseAnalytics.logEvent("button_click") {
+            param(FirebaseAnalytics.Param.ITEM_NAME, buttonName)
+            param(FirebaseAnalytics.Param.SCREEN_NAME, screenName)
+        }
     }
 
     fun actionEvent(actionName: String) {

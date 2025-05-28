@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import edu.uniandes.ecosnap.Analytics
 import edu.uniandes.ecosnap.domain.model.RecyclingGuideItem
 import edu.uniandes.ecosnap.R
 
@@ -129,7 +130,9 @@ private fun SearchBar(
         },
         trailingIcon = {
             if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
+                IconButton(onClick = {
+                    Analytics.buttonEvent("search", "recycling_guide_screen")
+                    onQueryChange("") }) {
                     Icon(
                         imageVector = Icons.Default.Clear,
                         contentDescription = "Clear search",
@@ -165,7 +168,9 @@ private fun CategorySelector(
             CategoryChip(
                 name = "Todos",
                 isSelected = selectedCategory == null,
-                onClick = { onCategorySelected(null) }
+                onClick = {
+                    Analytics.buttonEvent("category_selected", "recycling_guide_screen")
+                    onCategorySelected(null) }
             )
         }
 
@@ -173,7 +178,9 @@ private fun CategorySelector(
             CategoryChip(
                 name = category,
                 isSelected = category == selectedCategory,
-                onClick = { onCategorySelected(category) }
+                onClick = {
+                    Analytics.buttonEvent("category_selected", "recycling_guide_screen")
+                    onCategorySelected(category) }
             )
         }
     }

@@ -12,6 +12,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import edu.uniandes.ecosnap.Analytics
 
 @Composable
 fun LoginScreen(
@@ -87,6 +88,7 @@ fun LoginScreen(
 
             Button(
                 onClick = {
+                    Analytics.buttonEvent("register_mode", "login")
                     if (uiState.isRegistrationMode) viewModel.register()
                     else viewModel.login()
                 },
@@ -108,7 +110,10 @@ fun LoginScreen(
             }
 
             TextButton(
-                onClick = { viewModel.toggleRegistrationMode() },
+                onClick = {
+                    Analytics.buttonEvent("togle_mode", "login")
+                    viewModel.toggleRegistrationMode()
+                          },
                 enabled = !uiState.isLoading
             ) {
                 Text(
@@ -121,7 +126,9 @@ fun LoginScreen(
         }
 
         Button(
-            onClick = { viewModel.signInAnonymously() },
+            onClick = {
+                Analytics.buttonEvent("annonimousl", "login")
+                viewModel.signInAnonymously() },
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter),

@@ -5,6 +5,7 @@ import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import edu.uniandes.ecosnap.Analytics
 import edu.uniandes.ecosnap.data.repository.AuthRepository
 import edu.uniandes.ecosnap.ui.screens.camera.CameraScanScreen
 import edu.uniandes.ecosnap.ui.screens.home.HomeScreen
@@ -43,10 +44,12 @@ fun AppNavHost(navController: NavHostController) {
         startDestination = startDestination
     ) {
         composable(AppDestinations.LOGIN_ROUTE) {
+            Analytics.screenEvent("login_screen")
             LoginScreen(navController)
         }
 
         composable(AppDestinations.HOME_ROUTE) {
+            Analytics.screenEvent("home_screen")
             HomeScreen(
                 onScanClick = { navController.navigate(AppDestinations.SCAN_ROUTE) },
                 onRedeemClick = { navController.navigate(AppDestinations.REDEEM_ROUTE) },
@@ -55,6 +58,7 @@ fun AppNavHost(navController: NavHostController) {
         }
 
         composable(AppDestinations.SCAN_ROUTE) {
+            Analytics.screenEvent("scan_screen")
             ScanScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onCameraScanClick = { navController.navigate(AppDestinations.CAMERA_SCAN) },
@@ -63,6 +67,7 @@ fun AppNavHost(navController: NavHostController) {
         }
 
         composable(AppDestinations.RECYCLING_GUIDE_ROUTE) {
+            Analytics.screenEvent("guide_screen")
             RecyclingGuideScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onCameraScanClick = { navController.navigate(AppDestinations.CAMERA_SCAN) }
@@ -70,28 +75,33 @@ fun AppNavHost(navController: NavHostController) {
         }
 
         composable(AppDestinations.SCAN_HISTORY_ROUTE) {
+            Analytics.screenEvent("scan_history_screen")
             ScanHistoryScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(AppDestinations.VISITED_POINTS_ROUTE) {
+            Analytics.screenEvent("visited_points_screen")
             VisitedPointsScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(AppDestinations.DASHBOARD_ROUTE) {
+            Analytics.screenEvent("dashboard_screen")
             DashboardScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(AppDestinations.REDEEM_ROUTE) {
+            Analytics.screenEvent("redeem_screen")
             RedeemScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(AppDestinations.CAMERA_SCAN) {
+            Analytics.screenEvent("camera_scan_screen")
             CameraScanScreen(onNavigateBack = { navController.popBackStack() })
         }
     }

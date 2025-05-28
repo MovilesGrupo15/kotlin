@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import edu.uniandes.ecosnap.Analytics
 import edu.uniandes.ecosnap.ui.components.OfferCard
 import edu.uniandes.ecosnap.ui.theme.Green
 import kotlinx.coroutines.launch
@@ -83,6 +84,7 @@ fun HomeScreen(
                         selected = false,
                         // En el onClick del NavigationDrawerItem del historial:
                         onClick = {
+                            Analytics.buttonEvent("scan_history", "home_screen")
                             scope.launch { drawerState.close() }
                             navController.navigate("scan_history")
                         },
@@ -97,6 +99,7 @@ fun HomeScreen(
                         label = { Text("Puntos Visitados") },
                         selected = false,
                         onClick = {
+                            Analytics.buttonEvent("visited_points", "home_screen")
                             scope.launch { drawerState.close() }
                             navController.navigate("visited_points")
                         },
@@ -111,6 +114,7 @@ fun HomeScreen(
                         label = { Text("Dashboard") },
                         selected = false,
                         onClick = {
+                            Analytics.buttonEvent("dashboard", "home_screen")
                             scope.launch { drawerState.close() }
                             navController.navigate("dashboard")
                         },
@@ -128,6 +132,7 @@ fun HomeScreen(
                         },
                         selected = false,
                         onClick = {
+                            Analytics.buttonEvent("logout", "home_screen")
                             scope.launch { drawerState.close() }
                             viewModel.signOut()
                             navController.navigate("login") {
@@ -146,7 +151,10 @@ fun HomeScreen(
                     title = { },
                     navigationIcon = {
                         IconButton(
-                            onClick = { scope.launch { drawerState.open() } },
+                            onClick = {
+                                Analytics.buttonEvent("menu_open", "home_screen")
+                                scope.launch { drawerState.open() }
+                                      },
                             enabled = !isLoading
                         ) {
                             Icon(
@@ -227,6 +235,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
                     Button(onClick = { viewModel.loadUserProfile() }) {
+                        Analytics.buttonEvent("retry", "home_screen")
                         Text("Reintentar")
                     }
                 }
